@@ -113,6 +113,9 @@ public final class OrderBookDirectImpl implements IOrderBook {
             case FOK_BUDGET:
                 newOrderMatchFokBudget(cmd);
                 break;
+            case FOK:
+            	newOrderMatchFok(cmd);
+            	break;
             // TODO IOC_BUDGET and FOK support
             default:
                 log.warn("Unsupported order type: {}", cmd);
@@ -127,6 +130,7 @@ public final class OrderBookDirectImpl implements IOrderBook {
         // check if order is marketable there are matching orders
         final long filledSize = tryMatchInstantly(cmd, cmd);
         if (filledSize == size) {
+
             // completed before being placed - can just return
             return;
         }
@@ -156,6 +160,10 @@ public final class OrderBookDirectImpl implements IOrderBook {
 
         orderIdIndex.put(orderId, orderRecord);
         insertOrder(orderRecord, null);
+    }
+    
+    private void newOrderMatchFok(final OrderCommand cmd) {
+    	
     }
 
     private void newOrderMatchIoc(final OrderCommand cmd) {
@@ -261,6 +269,7 @@ public final class OrderBookDirectImpl implements IOrderBook {
 
 //            log.debug("  matching from maker order: {}", makerOrder);
 
+        	// TODO Phan: Can I handle FOK order by maker.size == taker.size
             // calculate exact volume can fill for this order
             final long tradeSize = Math.min(remainingSize, makerOrder.size - makerOrder.filled);
 //                log.debug("  tradeSize: {} MIN(remainingSize={}, makerOrder={})", tradeSize, remainingSize, makerOrder.size - makerOrder.filled);

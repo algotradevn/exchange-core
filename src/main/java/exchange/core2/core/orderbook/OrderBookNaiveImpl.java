@@ -94,11 +94,54 @@ public final class OrderBookNaiveImpl implements IOrderBook {
             case FOK_BUDGET:
                 newOrderMatchFokBudget(cmd);
                 break;
+            case FOK:
+            	newOrderPlaceFok(cmd);
+            	break;
             // TODO IOC_BUDGET and FOK support
             default:
                 log.warn("Unsupported order type: {}", cmd);
                 eventsHelper.attachRejectEvent(cmd, cmd.size);
         }
+    }
+    
+    private void newOrderPlaceFok(final OrderCommand cmd) {
+    	final OrderAction action = cmd.action;
+        final long price = cmd.price;
+        final long size = cmd.size;
+
+        // check if order is marketable (if there are opposite matching orders)
+        final long filledSize = tryMatchInstantly(cmd, subtreeForMatching(action, price), 0, cmd);
+
+    	// Phan: For FOK, we have 2 cases, filled == size or filled == 0
+        if (filledSize == size) {
+            // order was matched completely - nothing to place - can just return
+            return;
+        }
+
+        long newOrderId = cmd.orderId;
+        if (idMap.containsKey(newOrderId)) {
+            // duplicate order id - can match, but can not place
+            eventsHelper.attachRejectEvent(cmd, cmd.size - filledSize);
+            log.warn("duplicate order id: {}", cmd);
+            return;
+        }
+
+        // normally placing regular GTC limit order
+        final Order orderRecord = new Order(
+                newOrderId,
+                price,
+                size,
+                filledSize,
+                cmd.reserveBidPrice,
+                action,
+                cmd.uid,
+                cmd.timestamp);
+
+        getBucketsByAction(action)
+                .computeIfAbsent(price, OrdersBucketNaive::new)
+                .put(orderRecord);
+
+        idMap.put(newOrderId, orderRecord);
     }
 
     private void newOrderPlaceGtc(final OrderCommand cmd) {
@@ -216,69 +259,72 @@ public final class OrderBookNaiveImpl implements IOrderBook {
      * @param triggerCmd      - triggered command (taker)
      * @return new filled size
      */
-    private long tryMatchInstantly(
-            final IOrder activeOrder,
-            final SortedMap<Long, OrdersBucketNaive> matchingBuckets,
-            long filled,
-            final OrderCommand triggerCmd) {
+	private long tryMatchInstantly(final IOrder activeOrder,
+			final SortedMap<Long, OrdersBucketNaive> matchingBuckets, long filled,
+			final OrderCommand triggerCmd) {
 
-//        log.info("matchInstantly: {} {}", order, matchingBuckets);
+		// log.info("matchInstantly: {} {}", order, matchingBuckets);
 
-        if (matchingBuckets.size() == 0) {
-            return filled;
-        }
+		if (matchingBuckets.size() == 0) {
+			return filled;
+		}
 
-        final long orderSize = activeOrder.getSize();
+		final long orderSize = activeOrder.getSize();
 
-        MatcherTradeEvent eventsTail = null;
+		OrderType orderType = triggerCmd.orderType;
+		MatcherTradeEvent eventsTail = null;
 
-        List<Long> emptyBuckets = new ArrayList<>();
-        for (final OrdersBucketNaive bucket : matchingBuckets.values()) {
+		List<Long> emptyBuckets = new ArrayList<>();
+		for (final OrdersBucketNaive bucket : matchingBuckets.values()) {
+			if (OrderType.FOK.equals(orderType) && bucket.getTotalVolume() == orderSize
+					|| !OrderType.FOK.equals(orderType)) {
 
-//            log.debug("Matching bucket: {} ...", bucket);
-//            log.debug("... with order: {}", activeOrder);
+				// log.debug("Matching bucket: {} ...", bucket);
+				// log.debug("... with order: {}", activeOrder);
 
-            final long sizeLeft = orderSize - filled;
+				final long sizeLeft = orderSize - filled;
 
-            final OrdersBucketNaive.MatcherResult bucketMatchings = bucket.match(sizeLeft, activeOrder, eventsHelper);
+				final OrdersBucketNaive.MatcherResult bucketMatchings = bucket.match(sizeLeft,
+						activeOrder, eventsHelper);
 
-            bucketMatchings.ordersToRemove.forEach(idMap::remove);
+				bucketMatchings.ordersToRemove.forEach(idMap::remove);
 
-            filled += bucketMatchings.volume;
+				filled += bucketMatchings.volume;
 
-            // attach chain received from bucket matcher
-            if (eventsTail == null) {
-                triggerCmd.matcherEvent = bucketMatchings.eventsChainHead;
-            } else {
-                eventsTail.nextEvent = bucketMatchings.eventsChainHead;
-            }
-            eventsTail = bucketMatchings.eventsChainTail;
+				// attach chain received from bucket matcher
+				if (eventsTail == null) {
+					triggerCmd.matcherEvent = bucketMatchings.eventsChainHead;
+				} else {
+					eventsTail.nextEvent = bucketMatchings.eventsChainHead;
+				}
+				eventsTail = bucketMatchings.eventsChainTail;
 
-//            log.debug("Matching orders: {}", matchingOrders);
-//            log.debug("order.filled: {}", activeOrder.filled);
+				// log.debug("Matching orders: {}", matchingOrders);
+				// log.debug("order.filled: {}", activeOrder.filled);
 
-            long price = bucket.getPrice();
+				long price = bucket.getPrice();
 
-            // remove empty buckets
-            if (bucket.getTotalVolume() == 0) {
-                emptyBuckets.add(price);
-            }
+				// remove empty buckets
+				if (bucket.getTotalVolume() == 0) {
+					emptyBuckets.add(price);
+				}
 
-            if (filled == orderSize) {
-                // enough matched
-                break;
-            }
-        }
+				if (filled == orderSize) {
+					// enough matched
+					break;
+				}
+			}
+		}
 
-        // remove empty buckets (is it necessary?)
-        // TODO can remove through iterator ??
-        emptyBuckets.forEach(matchingBuckets::remove);
+		// remove empty buckets (is it necessary?)
+		// TODO can remove through iterator ??
+		emptyBuckets.forEach(matchingBuckets::remove);
 
-//        log.debug("emptyBuckets: {}", emptyBuckets);
-//        log.debug("matchingRecords: {}", matchingRecords);
+		// log.debug("emptyBuckets: {}", emptyBuckets);
+		// log.debug("matchingRecords: {}", matchingRecords);
 
-        return filled;
-    }
+		return filled;
+	}
 
     /**
      * Remove an order.<p>

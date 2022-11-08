@@ -15,17 +15,6 @@
  */
 package exchange.core2.core.orderbook;
 
-import exchange.core2.core.common.L2MarketData;
-import exchange.core2.core.common.cmd.CommandResultCode;
-import exchange.core2.core.common.cmd.OrderCommand;
-import exchange.core2.core.common.config.LoggingConfiguration;
-import exchange.core2.tests.util.TestOrdersGenerator;
-import lombok.extern.slf4j.Slf4j;
-import org.junit.jupiter.api.Test;
-
-import java.util.HashMap;
-import java.util.Map;
-
 import static exchange.core2.core.common.OrderAction.ASK;
 import static exchange.core2.core.common.OrderAction.BID;
 import static exchange.core2.core.common.OrderType.GTC;
@@ -34,6 +23,18 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+
+import java.util.HashMap;
+import java.util.Map;
+
+import org.junit.jupiter.api.Test;
+
+import exchange.core2.core.common.L2MarketData;
+import exchange.core2.core.common.cmd.CommandResultCode;
+import exchange.core2.core.common.cmd.OrderCommand;
+import exchange.core2.core.common.config.LoggingConfiguration;
+import exchange.core2.tests.util.TestOrdersGenerator;
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public abstract class OrderBookDirectImplTest extends OrderBookBaseTest {
@@ -56,7 +57,7 @@ public abstract class OrderBookDirectImplTest extends OrderBookBaseTest {
 
         assertEquals(orderBook.stateHash(), orderBookRef.stateHash());
 
-        TestOrdersGenerator.GenResult genResult = TestOrdersGenerator.generateCommands(
+        final TestOrdersGenerator.GenResult genResult = TestOrdersGenerator.generateCommands(
                 tranNum,
                 targetOrderBookOrders,
                 numUsers,
@@ -68,7 +69,7 @@ public abstract class OrderBookDirectImplTest extends OrderBookBaseTest {
                 1825793762);
 
         long i = 0;
-        for (OrderCommand cmd : genResult.getCommands()) {
+        for (final OrderCommand cmd : genResult.getCommands()) {
             i++;
             cmd.orderId += 100;
 
@@ -76,7 +77,7 @@ public abstract class OrderBookDirectImplTest extends OrderBookBaseTest {
             IOrderBook.processCommand(orderBook, cmd);
 
             cmd.resultCode = CommandResultCode.VALID_FOR_MATCHING_ENGINE;
-            CommandResultCode commandResultCode = IOrderBook.processCommand(orderBookRef, cmd);
+            final CommandResultCode commandResultCode = IOrderBook.processCommand(orderBookRef, cmd);
 
             assertThat(commandResultCode, is(SUCCESS));
 
@@ -107,7 +108,7 @@ public abstract class OrderBookDirectImplTest extends OrderBookBaseTest {
             // TODO compare L2 marketdata
 
             if (System.currentTimeMillis() > nextUpdateTime) {
-                log.debug("{}% done ({})", (i * 10000 / (float) genResult.size()) / 100f, i);
+                log.debug("{}% done ({})", i * 10000 / (float) genResult.size() / 100f, i);
                 nextUpdateTime = System.currentTimeMillis() + 3000;
             }
 
@@ -134,11 +135,11 @@ public abstract class OrderBookDirectImplTest extends OrderBookBaseTest {
         int orderId = 100;
 
         // collecting expected limit order volumes for each price
-        Map<Long, Long> results = new HashMap<>();
+        final Map<Long, Long> results = new HashMap<>();
 
         // placing limit bid orders
         for (long price = bottomPrice; price < INITIAL_PRICE; price++) {
-            OrderCommand cmd = OrderCommand.newOrder(GTC, orderId++, UID_1, price, price * 10, 1, BID);
+            final OrderCommand cmd = OrderCommand.newOrder(GTC, orderId++, UID_1, price, price * 10, 1, BID);
 //            log.debug("BID {}", price);
             processAndValidate(cmd, SUCCESS);
             results.put(price, -1L);
@@ -146,8 +147,8 @@ public abstract class OrderBookDirectImplTest extends OrderBookBaseTest {
 
 
         for (long price = topPrice; price >= bottomPrice; price--) {
-            long size = price * price;
-            OrderCommand cmd = OrderCommand.newOrder(GTC, orderId++, UID_2, price, 0, size, ASK);
+            final long size = price * price;
+            final OrderCommand cmd = OrderCommand.newOrder(GTC, orderId++, UID_2, price, 0, size, ASK);
 //            log.debug("ASK {}", price);
             processAndValidate(cmd, SUCCESS);
             results.compute(price, (p, v) -> v == null ? size : v + size);
@@ -157,15 +158,15 @@ public abstract class OrderBookDirectImplTest extends OrderBookBaseTest {
         }
 
         // collecting full order book
-        L2MarketData snapshot = orderBook.getL2MarketDataSnapshot(Integer.MAX_VALUE);
+        final L2MarketData snapshot = orderBook.getL2MarketDataSnapshot(Integer.MAX_VALUE);
 
         // check the number of records, should match to expected results
         assertThat(snapshot.askSize, is(results.size()));
 
         // verify expected size for each price
         for (int i = 0; i < snapshot.askSize; i++) {
-            long price = snapshot.askPrices[i];
-            Long expectedSize = results.get(price);
+            final long price = snapshot.askPrices[i];
+            final Long expectedSize = results.get(price);
             assertThat(expectedSize, notNullValue());
 //            if (snapshot.askVolumes[i] != expectedSize) {
 //                log.error("volume mismatch for price {} : diff={}", price, snapshot.askVolumes[i] - expectedSize);
@@ -193,19 +194,19 @@ public abstract class OrderBookDirectImplTest extends OrderBookBaseTest {
         int orderId = 100;
 
         // collecting expected limit order volumes for each price
-        Map<Long, Long> results = new HashMap<>();
+        final Map<Long, Long> results = new HashMap<>();
 
         // placing limit ask orders
         for (long price = topPrice; price > INITIAL_PRICE; price--) {
-            OrderCommand cmd = OrderCommand.newOrder(GTC, orderId++, UID_1, price, 0, 1, ASK);
+            final OrderCommand cmd = OrderCommand.newOrder(GTC, orderId++, UID_1, price, 0, 1, ASK);
 //            log.debug("BID {}", price);
             processAndValidate(cmd, SUCCESS);
             results.put(price, -1L);
         }
 
         for (long price = bottomPrice; price <= topPrice; price++) {
-            long size = price * price;
-            OrderCommand cmd = OrderCommand.newOrder(GTC, orderId++, UID_2, price, price * 10, size, BID);
+            final long size = price * price;
+            final OrderCommand cmd = OrderCommand.newOrder(GTC, orderId++, UID_2, price, price * 10, size, BID);
 //            log.debug("ASK {}", price);
             processAndValidate(cmd, SUCCESS);
             results.compute(price, (p, v) -> v == null ? size : v + size);
@@ -215,15 +216,15 @@ public abstract class OrderBookDirectImplTest extends OrderBookBaseTest {
         }
 
         // collecting full order book
-        L2MarketData snapshot = orderBook.getL2MarketDataSnapshot(Integer.MAX_VALUE);
+        final L2MarketData snapshot = orderBook.getL2MarketDataSnapshot(Integer.MAX_VALUE);
 
         // check the number of records, should match to expected results
         assertThat(snapshot.bidSize, is(results.size()));
 
         // verify expected size for each price
         for (int i = 0; i < snapshot.bidSize; i++) {
-            long price = snapshot.bidPrices[i];
-            Long expectedSize = results.get(price);
+            final long price = snapshot.bidPrices[i];
+            final Long expectedSize = results.get(price);
             assertThat(expectedSize, notNullValue());
 //            if (snapshot.askVolumes[i] != expectedSize) {
 //                log.error("volume mismatch for price {} : diff={}", price, snapshot.askVolumes[i] - expectedSize);
