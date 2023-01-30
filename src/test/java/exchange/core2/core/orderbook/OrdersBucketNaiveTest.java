@@ -190,7 +190,7 @@ public final class OrdersBucketNaiveTest {
         }
 
         OrderCommand triggerOrd = OrderCommand.update(8182, UID_9, 1000);
-        OrdersBucketNaive.MatcherResult matcherResult = bucket.match(expectedVolume, triggerOrd, eventsHelper);
+        OrdersBucketNaive.MatcherResult matcherResult = bucket.match(expectedVolume, triggerOrd, eventsHelper, null);
 
         assertThat(MatcherTradeEvent.asList(matcherResult.eventsChainHead).size(), is(expectedNumOrders));
 
@@ -246,7 +246,7 @@ public final class OrdersBucketNaiveTest {
 
             OrderCommand triggerOrd = OrderCommand.update(119283900, UID_9, 1000);
 
-            OrdersBucketNaive.MatcherResult matcherResult = bucket.match(toMatch, triggerOrd, eventsHelper);
+            OrdersBucketNaive.MatcherResult matcherResult = bucket.match(toMatch, triggerOrd, eventsHelper, null);
             long totalVolume = matcherResult.volume;
             assertThat(totalVolume, is(toMatch));
             expectedVolume -= totalVolume;
@@ -258,7 +258,7 @@ public final class OrdersBucketNaiveTest {
 
         OrderCommand triggerOrd = OrderCommand.update(1238729387, UID_9, 1000);
 
-        OrdersBucketNaive.MatcherResult matcherResult = bucket.match(expectedVolume, triggerOrd, eventsHelper);
+        OrdersBucketNaive.MatcherResult matcherResult = bucket.match(expectedVolume, triggerOrd, eventsHelper, null);
 
         assertThat(MatcherTradeEvent.asList(matcherResult.eventsChainHead).size(), is(expectedNumOrders));
 

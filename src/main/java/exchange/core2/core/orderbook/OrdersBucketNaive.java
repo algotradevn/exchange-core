@@ -93,57 +93,71 @@ public final class OrdersBucketNaive implements Comparable<OrdersBucketNaive>, W
      * @param volumeToCollect - volume to collect
      * @param activeOrder     - for getReserveBidPrice
      * @param helper          - events helper
+     * @param shouldMatchedQty TODO
      * @return - total matched volume, events, completed orders to remove
      */
-    public MatcherResult match(long volumeToCollect, IOrder activeOrder, OrderBookEventsHelper helper) {
+	public MatcherResult match(long volumeToCollect, IOrder activeOrder,
+			OrderBookEventsHelper helper, List<Long> shouldMatchedQty) {
 
-//        log.debug("---- match: {}", volumeToCollect);
+		// log.debug("---- match: {}", volumeToCollect);
 
-        final Iterator<Map.Entry<Long, Order>> iterator = entries.entrySet().iterator();
+		final Iterator<Map.Entry<Long, Order>> iterator = entries.entrySet().iterator();
 
-        long totalMatchingVolume = 0;
+		long totalMatchingVolume = 0;
 
-        final List<Long> ordersToRemove = new ArrayList<>();
+		final List<Long> ordersToRemove = new ArrayList<>();
 
-        MatcherTradeEvent eventsHead = null;
-        MatcherTradeEvent eventsTail = null;
+		MatcherTradeEvent eventsHead = null;
+		MatcherTradeEvent eventsTail = null;
+		
+		int matchedQtyIndex = 0;
 
-        // iterate through all orders
-        while (iterator.hasNext() && volumeToCollect > 0) {
-            final Map.Entry<Long, Order> next = iterator.next();
-            final Order order = next.getValue();
+		// iterate through all orders
+		while (iterator.hasNext() && volumeToCollect > 0) {
+			final Map.Entry<Long, Order> next = iterator.next();
+			final Order order = next.getValue();
+			
+			if (shouldMatchedQty.size() > 0) {
+				if (shouldMatchedQty.get(matchedQtyIndex) != order.getSize()) {
+					continue;
+				}
+				matchedQtyIndex++;
+			}
 
-            // calculate exact volume can fill for this order
-//            log.debug("volumeToCollect={} order: s{} f{}", volumeToCollect, order.size, order.filled);
-            final long v = Math.min(volumeToCollect, order.size - order.filled);
-            totalMatchingVolume += v;
-//            log.debug("totalMatchingVolume={} v={}", totalMatchingVolume, v);
+			// calculate exact volume can fill for this order
+			// log.debug("volumeToCollect={} order: s{} f{}", volumeToCollect, order.size, order.filled);
+			final long v = Math.min(volumeToCollect, order.size - order.filled);
+			totalMatchingVolume += v;
+			// log.debug("totalMatchingVolume={} v={}", totalMatchingVolume, v);
 
-            order.filled += v;
-            volumeToCollect -= v;
-            totalVolume -= v;
+			order.filled += v;
+			volumeToCollect -= v;
+			totalVolume -= v;
 
-            // remove from order book filled orders
-            final boolean fullMatch = order.size == order.filled;
+			// remove from order book filled orders
+			final boolean fullMatch = order.size == order.filled;
 
-            final long bidderHoldPrice = order.action == OrderAction.ASK ? activeOrder.getReserveBidPrice() : order.reserveBidPrice;
-            final MatcherTradeEvent tradeEvent = helper.sendTradeEvent(order, fullMatch, volumeToCollect == 0, v, bidderHoldPrice);
+			final long bidderHoldPrice = order.action == OrderAction.ASK
+					? activeOrder.getReserveBidPrice()
+					: order.reserveBidPrice;
+			final MatcherTradeEvent tradeEvent = helper.sendTradeEvent(order, fullMatch,
+					volumeToCollect == 0, v, bidderHoldPrice);
 
-            if (eventsTail == null) {
-                eventsHead = tradeEvent;
-            } else {
-                eventsTail.nextEvent = tradeEvent;
-            }
-            eventsTail = tradeEvent;
+			if (eventsTail == null) {
+				eventsHead = tradeEvent;
+			} else {
+				eventsTail.nextEvent = tradeEvent;
+			}
+			eventsTail = tradeEvent;
 
-            if (fullMatch) {
-                ordersToRemove.add(order.orderId);
-                iterator.remove();
-            }
-        }
+			if (fullMatch) {
+				ordersToRemove.add(order.orderId);
+				iterator.remove();
+			}
+		}
 
-        return new MatcherResult(eventsHead, eventsTail, totalMatchingVolume, ordersToRemove);
-    }
+		return new MatcherResult(eventsHead, eventsTail, totalMatchingVolume, ordersToRemove);
+	}
 
     /**
      * Get number of orders in the bucket
